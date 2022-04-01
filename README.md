@@ -7,7 +7,7 @@
 The official code for "Learning Density Distribution of Reachable States for Autonomous Systems" (CoRL2021 https://openreview.net/pdf?id=sWBqOL5Nh4P)
 
 
-This code base contains six parts:
+This code base contains seven parts:
 
 0. Installation requirements
 1. Collect simulation data
@@ -15,6 +15,7 @@ This code base contains six parts:
 3. Reproduce the result in Table.1
 4. Reproduce the result in Figure 2 & 3
 5. Reproduce the result in Figure 4
+6. RPM computations
 
 
 ```shell
