@@ -1,4 +1,8 @@
-# Reachable States Density Estimation using Neural Networks
+# Reachable States Density Estimation
+
+[![Conference](https://img.shields.io/badge/CoRL2021-Accepted-success)](https://sites.google.com/robot-learning.org/corl2021)
+   
+[![Arxiv](http://img.shields.io/badge/arxiv-cs:2109.06728-B31B1B.svg)](https://arxiv.org/pdf/2109.06728.pdf)
 
 The official code for "Learning Density Distribution of Reachable States for Autonomous Systems" (CoRL2021 https://openreview.net/pdf?id=sWBqOL5Nh4P)
 
