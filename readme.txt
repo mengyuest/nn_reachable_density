@@ -22,6 +22,8 @@
 # Download the data from https://drive.google.com/file/d/1qL0E6U1PScEDyOO25gNI8BEuXZLfCzpf/view?usp=sharing
 # and unzip it to `./`
 
+## Install Julia 1.4.2
+
 
 
 ##########################################
@@ -107,3 +109,17 @@ cd plots
 python exp3_var.py
 
 # and the result will be in `cache/fig4.png`
+
+
+###############################################
+## 6. Generate RPM cells from NN models      ##
+###############################################
+python handle_rpm.py --exp_mode vdp
+python handle_rpm.py --exp_mode dint
+python handle_rpm.py --exp_mode robot
+python handle_rpm.py --exp_mode car
+
+
+
+
+
