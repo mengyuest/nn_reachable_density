@@ -1,13 +1,19 @@
-## This code base contains six parts
-## 0. Installation requirements
-## 1. Collect simulation data
-## 2. Train neural network
-## 3. Reproduce the result in Table.1
-## 4. Reproduce the result in Figure 2 & 3
-## 5. Reproduce the result in Figure 4
+# Reachable States Density Estimation using Neural Networks
+
+The official code for "Learning Density Distribution of Reachable States for Autonomous Systems" (CoRL2021 https://openreview.net/pdf?id=sWBqOL5Nh4P)
 
 
+This code base contains six parts:
 
+0. Installation requirements
+1. Collect simulation data
+2. Train neural network
+3. Reproduce the result in Table.1
+4. Reproduce the result in Figure 2 & 3
+5. Reproduce the result in Figure 4
+
+
+```shell
 ##########################################
 ## 0. Installation requirements         ##
 ##########################################
@@ -118,7 +124,7 @@ python handle_rpm.py --exp_mode vdp
 python handle_rpm.py --exp_mode dint
 python handle_rpm.py --exp_mode robot
 python handle_rpm.py --exp_mode car
-
+```
 
 
 
