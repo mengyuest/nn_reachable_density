@@ -129,6 +129,17 @@ python handle_rpm.py --exp_mode vdp
 python handle_rpm.py --exp_mode dint
 python handle_rpm.py --exp_mode robot
 python handle_rpm.py --exp_mode car
+
+
+###############################################
+## 7. Test output for NN models              ##
+###############################################
+First download the exp file from https://drive.google.com/file/d/1vP_MOz57OAZLMDjfbiu_jtNL_FUY56lv/view?usp=sharing and unzip it to ./cache
+
+Run the following command:
+python get_nn_est.py --gpus 0 --exp_mode vdp --exp_name lr5k_e500k --hiddens 32 32 --num_epochs 500000 --beta 0.5 --lr 5000 --train_data_path exp_vdp --wrap_log1 --dyna_weight 1.0 --less_t --train_dyna_only --log_density --t_struct --change_after 200000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --pretrained_path data/models/vdp_model.ckpt
+
+The result will be ./cache
 ```
 
 
