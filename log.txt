@@ -1,0 +1,39 @@
+
+
+April 18, 2022
+Train VDP NN without t_struct:
+
+There are two variations
+* noT: not using t_struct in the NN entirely (remove the flag --t_struct)
+
+* outT: using t_struct outside of the NN (remove the flag --t_struct and add the flag --t_struct_out_nn)
+
+
+Steps:
+
+1. First download the vdp sim data from: https://drive.google.com/file/d/1wvl3rfwueVF5LuyfFbqMLthrMftUT0Dy/view?usp=sharing
+2. Unzip the vdp sim data to ./cache
+3. Test the NN (noT) by: python train_nn.py --gpus 0 --exp_mode vdp --exp_name vdp_noT_TEST --hiddens 32 32 --num_epochs 1 --beta 0.5 --lr 0.001 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 0.25 --less_t --log_density --show_stat --pretrained_path cache/model_vdp_noT/models/model499000.ckpt
+4. Test the NN (outT) by: python train_nn.py --gpus 0 --exp_mode vdp --exp_name TEST --hiddens 32 32 --num_epochs 1 --beta 0.5 --lr 0.001 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 0.25 --less_t --log_density --show_stat --t_struct_out_nn --pretrained_path cache/model_vdp_outT/models/model499000.ckpt
+
+
+
+
+
+
+
+Train with t struct
+
+Train without t struct
+
+python train_nn.py --gpus 0 --exp_mode vdp --exp_name lr5k_e500k_newT_noT --hiddens 32 32 --num_epochs 500000 --beta 0.5 --lr 5000 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 1.0 --less_t --train_dyna_only --log_density --change_after 200000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000  --external
+
+
+python train_nn.py --gpus 0 --exp_mode vdp --exp_name lr5k_e500k_newT_noT_pret --hiddens 32 32 --num_epochs 500000 --beta 0.5 --lr 2000 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 0.25 --less_t --log_density --show_stat --pretrained_path /home/meng/exps_pde/g0415-100438_vdp_lr5k_e500k_newT_noT/models/model499000.ckpt --external
+
+
+
+Train without t_struct, but t_struct out of nn
+python train_nn.py --gpus 1 --exp_mode vdp --exp_name lr5k_e500k_newT_outT --hiddens 32 32 --num_epochs 500000 --beta 0.5 --lr 5000 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 1.0 --less_t --train_dyna_only --log_density --change_after 200000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external
+
+python train_nn.py --gpus 1 --exp_mode vdp --exp_name lr5k_e500k_newT_outT_pret --hiddens 32 32 --num_epochs 500000 --beta 0.5 --lr 2000 --train_data_path g0623-093136_vdp_traj_10k_newT --wrap_log1 --dyna_weight 0.25 --less_t --log_density --show_stat --t_struct_out_nn --pretrained_path cache/g0415-112653_vdp_lr5k_e500k_newT_outT/models/model499000.ckpt --external

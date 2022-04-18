@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 import sub_utils
 from multiprocessing.pool import Pool
 
+
 class Net(nn.Module):
     def __init__(self, args):
         super(Net, self).__init__()
@@ -151,11 +152,17 @@ def get_args():
 
     parser.add_argument('--train_rate', type=float, default=None)
 
+    parser.add_argument('--t_struct_out_nn', action='store_true', default=False)
+    parser.add_argument('--external', action='store_true', default=False)
     return parser.parse_args()
+
 
 def get_data_tensor_from_numpy(args, filename):
     data={"train":{}, "test":{}}
-    raw_data = np.load(os.path.join("cache", args.train_data_path, filename), allow_pickle=True)['arr_0'].item()
+    if args.external:
+        raw_data = np.load(os.path.join("../nn_pde/data/", args.train_data_path, filename), allow_pickle=True)['arr_0'].item()
+    else:
+        raw_data = np.load(os.path.join("cache", args.train_data_path, filename), allow_pickle=True)['arr_0'].item()
     keys = ['s_list', 'rho_list', 'nabla_list', 't_list']  # (n_trajs, nt, dim)
     if args.max_len is not None:
         for k in keys:
@@ -232,11 +239,13 @@ def get_data_tensor_from_numpy(args, filename):
 
     return data, data["train"], data["test"], in_means, in_stds, out_means, out_stds, init_rho["train"], init_rho["test"]
 
+
 def plot_loss_curve(nt, losses, fig_name):
     ts = range(nt)
     plt.plot(ts, torch.mean(losses.reshape(nt, -1), dim=-1).detach().cpu().numpy())
     plt.savefig(fig_name, bbox_inches='tight', pad_inches=0)
     plt.close()
+
 
 def plot_heatmap(fig_name, heat, args):
     nx = args.nx
@@ -253,6 +262,7 @@ def plot_heatmap(fig_name, heat, args):
     plt.savefig(fig_name, bbox_inches='tight', pad_inches=0)
     plt.close()
 
+
 def plot_scatter(fig_name, xs1, ys1, c1, xs2, ys2, c2, args):
     plt.scatter(xs1, ys1, color=c1, alpha=0.5, s=1.0)
     plt.scatter(xs2, ys2, color=c2, alpha=0.5, s=1.0)
@@ -264,8 +274,10 @@ def plot_scatter(fig_name, xs1, ys1, c1, xs2, ys2, c2, args):
     plt.savefig(fig_name, bbox_inches='tight', pad_inches=0)
     plt.close()
 
+
 def gridify(xs, xmin, xmax, nx):
     return torch.clamp(((xs - xmin) / ((xmax-xmin)/nx)).int(), 0, nx-1).numpy()
+
 
 def plot_t_density_particles(input_data):
     epi, t, test_gain_dyna_full_plain, test_gt_x_plain, test_gtr_plain, n_test, input_dim, test_ri, args = input_data
@@ -323,6 +335,7 @@ def plot_t_density_particles(input_data):
                  test_x_est[:, args.x_index], test_x_est[:, args.y_index], "red", args)
     return
 
+
 def parse_line(line, keyword, is_int=False, is_str=False, fail_none=False):
     if fail_none:
         if keyword not in line:
@@ -339,17 +352,26 @@ def parse_line(line, keyword, is_int=False, is_str=False, fail_none=False):
         print("Parse %.4f from %s ~~"%(val, keyword))
     return val
 
+
+def t_struct_func(xt0, gain_dyna, args):
+    assert len(gain_dyna.shape) == 2
+    assert args.t_struct == False
+    new_gain = gain_dyna[:, 0:1] * xt0[:, -1:]
+    return torch.cat([new_gain, gain_dyna[:, 1:]], dim=-1)
+
+
 def main():
     t1=time.time()
     args = get_args()
-
     assert args.log_density
-
     np.random.seed(args.random_seed)
     torch.manual_seed(args.random_seed)
 
     # TODO auto load config from cmd.txt
-    cmdline = open(os.path.join("cache",args.train_data_path, "cmd.txt")).readlines()[0]
+    if args.external:
+        cmdline = open(os.path.join("../nn_pde/data/", args.train_data_path, "cmd.txt")).readlines()[0]
+    else:
+        cmdline = open(os.path.join("cache", args.train_data_path, "cmd.txt")).readlines()[0]
     if args.x_min is None:
         args.x_min = parse_line(cmdline, "--x_min")
     if args.y_min is None:
@@ -489,12 +511,16 @@ def main():
 
         # all (x,0) cases, should gain=1  (log(gain)=0)
         gain_dyna_0 = model(xs_t0)
+        if args.t_struct_out_nn:
+            gain_dyna_0 = t_struct_func(xs_t0, gain_dyna_0, args)
         if args.only_dynamics_arch == False:
             gain_0 = gain_dyna_0[:, 0:1]
             loss_bound = torch.mean(gain_0*gain_0)
 
         # all (x,t) cases, loss for density and x
         train_est_gain_dyna = model(train_init_xts)
+        if args.t_struct_out_nn:
+            train_est_gain_dyna = t_struct_func(train_init_xts, train_est_gain_dyna, args)
         if args.only_dynamics_arch == False:
             if args.only_density_arch:
                 log_train_est_rho = train_est_gain_dyna[:, 0:1]
@@ -581,6 +607,8 @@ def main():
 
         if epi % args.save_freq == 0:
             test_gain_dyna = model(test_xt0s)
+            if args.t_struct_out_nn:
+                test_gain_dyna = t_struct_func(test_xt0s, test_gain_dyna, args)
             if args.only_density_arch == False and args.only_dynamics_arch == False:
                 test_gain_dyna_full = test_gain_dyna.reshape(nt, n_test, input_dim).detach()
             elif args.only_density_arch==True:
