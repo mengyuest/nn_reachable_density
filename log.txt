@@ -1,3 +1,24 @@
+April 26, 2022
+Train VDP, Robot, and F-16
+
+
+TODO VDP
+python train_vnn.py --gpus 0 --exp_mode vdp --exp_name vdp_outT --hiddens 32 32 --num_epochs 500000 --lr 5000 --train_data_path comp_vdp --train_dyna_only --log_density --change_after 200000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external
+
+python train_vnn.py --gpus 0 --exp_mode vdp --exp_name vdp_outT_pret --hiddens 32 32 --num_epochs 500000 --lr 2000 --train_data_path comp_vdp --dyna_weight 0.25 --log_density --show_stat --t_struct_out_nn --pretrained_path cache/g0415-112653_vdp_lr5k_e500k_newT_outT/models/model499000.ckpt --external
+
+
+TODO Robot (g0615-191200_robot_NEW_lr5k_e200k_3x6, g0612-213109_robot_m6_1k)
+python train_vnn.py --gpus 0 --exp_mode robot --exp_name robot_outT --hiddens 64 64 64 --num_epochs 500000 --lr 5000 --train_data_path comp_robot --train_dyna_only --log_density --change_after 200000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external
+
+
+TODO F-16 (g0614-092107_gcas_lr5k_e200k, g0613-143852_gcas_debug)
+python train_vnn.py --gpus 0 --exp_mode gcas --exp_name gcas_outT --hiddens 32 32 --num_epochs 500000 --lr 5000 --train_data_path comp_gcas --train_dyna_only --log_density --normalize --change_after 100000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external
+
+
+
+
+
 
 
 April 18, 2022

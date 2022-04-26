@@ -3,9 +3,9 @@ import shutil
 import numpy as np
 import torch
 from scipy.io import savemat
-import gurobipy as gp
-from gurobipy import GRB
-import cdd
+# import gurobipy as gp
+# from gurobipy import GRB
+# import cdd
 from scipy.spatial import ConvexHull
 import scipy
 from scipy.stats import multivariate_normal
@@ -83,6 +83,46 @@ def setup_data_exp_and_logger(args, train_nn=False, reach_prob=False):
     np.savez(os.path.join(exp_dir_full, 'args'), args=args)
     return args
 
+
+def load_args_from_cmd(cmdline, args):
+    if args.x_min is None:
+        args.x_min = parse_line(cmdline, "--x_min")
+    if args.y_min is None:
+        args.y_min = parse_line(cmdline, "--y_min")
+    if args.x_max is None:
+        args.x_max = parse_line(cmdline, "--x_max")
+    if args.y_max is None:
+        args.y_max = parse_line(cmdline, "--y_max")
+    if args.dt is None:
+        args.dt = parse_line(cmdline, "--dt")
+    if args.max_len is None:
+        args.max_len = parse_line(cmdline, "--nt", is_int=True)
+    if args.x_index == 0:
+        args.x_index = parse_line(cmdline, "--x_index", is_int=True, fail_none=True)
+        if args.x_index is None:
+            args.x_index = 0
+    if args.y_index == 1:
+        args.y_index = parse_line(cmdline, "--y_index", is_int=True, fail_none=True)
+        if args.y_index is None:
+            args.y_index = 1
+    if args.x_label == 'x':
+        args.x_label = parse_line(cmdline, "--x_label", is_str=True, fail_none=True)
+        if args.x_label is None:
+            args.x_label = 'x'
+    if args.y_label == 'y':
+        args.y_label = parse_line(cmdline, "--y_label", is_str=True, fail_none=True)
+        if args.y_label is None:
+            args.y_label = 'y'
+    if args.nx is None:
+        args.nx = parse_line(cmdline, "--nx", is_int=True)
+    if args.ny is None:
+        args.ny = parse_line(cmdline, "--ny", is_int=True)
+    return args
+
+
+def get_average_meters(n):
+    return [AverageMeter() for _ in range(n)]
+
 def save_model_in_julia_format(model_path, save_path, in_dim, out_dim, args):
     checkpoint = torch.load(model_path)
     keys = list(checkpoint.keys())
@@ -106,6 +146,13 @@ def save_model_in_julia_format(model_path, save_path, in_dim, out_dim, args):
     mdic["weights"] = np.array(mdic["weights"], dtype=object)
     mdic["biases"] = np.array(mdic["biases"], dtype=object)
     savemat(save_path, mdic)
+
+
+def convert_to_onnx(model, dim, onnx_path, verbose=False):
+    input_names = ["input"]
+    output_names = ["output"]
+    dummy_input = torch.randn(1, dim).to(next(model.parameters()).device)
+    torch.onnx.export(model, dummy_input, onnx_path, verbose=verbose, input_names=input_names, output_names=output_names)
 
 
 def get_data_stat(raw_data, train_num_traj, use_log=False, include_minmax=False):
