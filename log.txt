@@ -65,3 +65,6 @@ python collect_data.py --exp_mode robot --exp_name m6_1k_test --pretrained_path 
 
 (GCAS test)
 python train_vnn.py --gpus 0 --exp_mode gcas --exp_name gcas_outT --hiddens 32 32 --num_epochs 2 --lr 5000 --train_data_path comp_gcas --train_dyna_only --log_density --normalize --change_after 1 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external --pretrained_path prep/g0504-233203_gcas_gcas_outT/models/model499000.ckpt --single_test
+
+(GCAS init range)
+python collect_data.py --exp_mode gcas --exp_name debug --dt 0.03333 --nt 106 --num_samples 5000 --x_min 500 --x_max 650 --y_min -200 --y_max 1200 --x_index 0 --y_index 11 --x_label v (ft/s) --y_label alt (ft) --nx 161 --ny 161 --viz_log_density --sim_data_path /home/meng/mit/nn_pde/aerobench/aerobench/examples/gcas/data/g0613-011833/sim_trajs.npz

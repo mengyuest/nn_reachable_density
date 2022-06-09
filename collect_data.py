@@ -99,7 +99,7 @@ def main():
         for i, key in enumerate(
                 ["Vt", "α", "β", "φ", "θ", "ψ", "P", "Q", "R", "Pn", "Pe", "alt", "pow", "Nz", "Ps", "Ny+r"]):
             print("[%02d] %5s   min:%.4f   max:%.4f" % (
-            i, key, np.min(data["states"][:, :, i]), np.max(data["states"][:, :, i]),))
+            i, key, np.min(data["states"][:, 0, i]), np.max(data["states"][:, 0, i]),))
 
         strs = ["vt", "alpha", "beta", "phi", "theta", "psi", "p", "q", "r", "pn", "pe", "alt", "power", "nz", "ps",
                 "ny"]
