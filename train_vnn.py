@@ -62,12 +62,20 @@ class Net(nn.Module):
 
         return out_x
 
-def nn_normalize(input, net, in_means, in_stds, out_means, out_stds):
+def nn_normalize(input, net, in_means, in_stds, out_means, out_stds, shall_print=False):
     x = (input - in_means) / in_stds
     y = net(x)
     output = y * out_stds + out_means
+    if shall_print:
+        print("in_means", in_means.detach().cpu().numpy())
+        print("in_stds", in_stds.detach().cpu().numpy())
+        print("out_means", out_means.detach().cpu().numpy())
+        print("out_stds", out_stds.detach().cpu().numpy())
+        print("Unscaled input", input.detach().cpu().numpy()[0])
+        print("Scaled input", x.detach().cpu().numpy()[0])
+        print("Scaled output", y.detach().cpu().numpy()[0])
+        print("Unscaled output", output.detach().cpu().numpy()[0])
     return output
-
 
 
 def get_args():
@@ -149,6 +157,7 @@ def get_args():
 
     parser.add_argument('--t_struct_out_nn', action='store_true', default=False)
     parser.add_argument('--external', action='store_true', default=False)
+    parser.add_argument('--single_test', action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -412,6 +421,22 @@ def main():
     train_init_ts = train_d['t'].reshape(nt * n_train, 1)
     train_init_xts = torch.cat([train_init_xs, train_init_ts], dim=-1)
     pool = Pool(processes=args.num_workers)
+
+    if args.single_test:
+        # OOD-input
+        input_x = torch.tensor(
+            [[540, 0.037027160081059704, 0, -0.39269908169872414, -0.47123889803846897,
+              0, 0, 0, 0, 0, 0, 1200, 8, 0.0]]).float()
+        # modified input
+        input_x = torch.tensor(
+            [[540, 0.037027160081059704, 0, -0.0877, -0.47123889803846897,
+              0, 0, 0, 0, 0, 0, 1200, 0.5045, 0.0]]).float()
+        input_x = input_x.cuda()
+        output_y = nn_normalize(input_x, model, in_means_cuda, in_stds_cuda, out_means_cuda, out_stds_cuda, True)
+        err = ((output_y[:, 1:] - input_x[:, :-1])/model.out_stds[1:]) ** 2
+        err = torch.mean(err)
+        print("Error", err.item())
+        exit()
 
     # MAIN LOOP
     for epi in range(args.num_epochs):

@@ -154,7 +154,6 @@ def get_args():
 
     parser.add_argument('--t_struct_out_nn', action='store_true', default=False)
     parser.add_argument('--external', action='store_true', default=False)
-
     return parser.parse_args()
 
 
@@ -482,7 +481,6 @@ def main():
     train_init_ts = train_d['t'].reshape(nt * n_train, 1)
     train_init_xts = torch.cat([train_init_xs, train_init_ts], dim=-1)
     pool = Pool(processes=args.num_workers)
-
 
     # MAIN LOOP
     for epi in range(args.num_epochs):

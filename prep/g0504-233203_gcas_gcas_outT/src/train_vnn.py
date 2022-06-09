@@ -21,12 +21,7 @@ class Net(nn.Module):
         for i, hidden in enumerate(args.hiddens):
             in_dim = args.hiddens[i]
             if i == len(args.hiddens) - 1:
-                if args.only_density_arch:
-                    out_dim = 1
-                elif args.only_dynamics_arch:
-                    out_dim = args.input_dim - 1
-                else:
-                    out_dim = args.input_dim
+                out_dim = args.input_dim
             else:
                 out_dim = args.hiddens[i + 1]
             self.linear_list.append(nn.Linear(in_dim, out_dim))
@@ -39,40 +34,40 @@ class Net(nn.Module):
 
     def update_device(self):
         if self.args.normalize:
-            # device=torch.device('cuda:0')
             self.in_means=self.in_means.cuda() #.to(device)
             self.in_stds=self.in_stds.cuda() #.to(device)
             self.out_means=self.out_means.cuda() #.to(device)
             self.out_stds=self.out_stds.cuda() #.to(device)
 
     def forward(self, ori_x):
-        if self.args.normalize:
-            x = (ori_x - self.in_means) / self.in_stds
-        else:
-            x = ori_x
+        # if self.args.normalize:
+        #     x = (ori_x - self.in_means) / self.in_stds
+        # else:
+        x = ori_x
 
         for i, hidden in enumerate(self.args.hiddens):
             x = self.relu(self.linear_list[i](x))
         x = self.linear_list[len(self.args.hiddens)](x)
 
-
         if self.args.t_struct:
-            if self.args.only_density_arch:
-                t_part = ori_x[:, -1:]
-                log_rho = x[:, 0:1] * t_part
-                x = log_rho
-            elif self.args.only_dynamics_arch==False:
-                t_part = ori_x[:, -1:]
-                log_rho = x[:, 0:1] * t_part
-                est_x = x[:, 1:]
-                x = torch.cat([log_rho, est_x], dim=-1)
+            t_part = ori_x[:, -1:]
+            log_rho = x[:, 0:1] * t_part
+            est_x = x[:, 1:]
+            x = torch.cat([log_rho, est_x], dim=-1)
 
-        if self.args.normalize:
-            out_x = x * self.out_stds + self.out_means
-        else:
-            out_x = x
+        # if self.args.normalize:
+        #     out_x = x * self.out_stds + self.out_means
+        # else:
+        out_x = x
 
         return out_x
+
+def nn_normalize(input, net, in_means, in_stds, out_means, out_stds):
+    x = (input - in_means) / in_stds
+    y = net(x)
+    output = y * out_stds + out_means
+    return output
+
 
 
 def get_args():
@@ -88,7 +83,7 @@ def get_args():
     parser.add_argument('--eval_freq', type=int, default=10000)
     parser.add_argument('--random_seed', type=int, default=1007)
 
-    parser.add_argument('--beta', type=float, default=0.2)  # trade-off between mse loss and pde loss
+    parser.add_argument('--beta', type=float, default=0.5)  # trade-off between mse loss and pde loss
     parser.add_argument('--lr', type=float, default=0.005)
     parser.add_argument('--dt', type=float, default=None)  # discrete time for neural network
     parser.add_argument('--max_len', type=int, default=None)
@@ -110,7 +105,7 @@ def get_args():
 
     parser.add_argument('--more_error', action='store_true', default=False)  # TODO
 
-    parser.add_argument('--dyna_weight', type=float ,default=1.0)
+    parser.add_argument('--dyna_weight', type=float, default=1.0)
 
     parser.add_argument('--x_index', type=int, default=0)
     parser.add_argument('--y_index', type=int, default=1)
@@ -154,7 +149,6 @@ def get_args():
 
     parser.add_argument('--t_struct_out_nn', action='store_true', default=False)
     parser.add_argument('--external', action='store_true', default=False)
-
     return parser.parse_args()
 
 
@@ -189,25 +183,10 @@ def get_data_tensor_from_numpy(args, filename):
         if args.no_dens_std:
             out_stds[0] = 1.0
 
-        if args.only_dynamics_arch:
-            out_stds = out_stds[1:]
-            out_means = out_means[1:]
-        elif args.only_density_arch:
-            out_stds = out_stds[0:1]
-            out_means = out_means[0:1]
-
         print("Normalization")
         print("  \tmeans\tstds\tmeans\tstds")
         for i in range(in_means.shape[0]):
-            if args.only_density_arch and i>=1:
-                print("%02d\t%9.4f\t%9.4f" % (i, in_means[i], in_stds[i]))
-            elif args.only_dynamics_arch:
-                if i>=in_means.shape[0]-1:
-                    print("%02d\t%9.4f\t%9.4f" % (i, in_means[i], in_stds[i]))
-                else:
-                    print("%02d\t%9.4f\t%9.4f\t%9.4f\t%9.4f" % (i, in_means[i], in_stds[i], out_means[i], out_stds[i]))
-            else:
-                print("%02d\t%9.4f\t%9.4f\t%9.4f\t%9.4f"%(i, in_means[i], in_stds[i], out_means[i], out_stds[i]))
+            print("%02d\t%9.4f\t%9.4f\t%9.4f\t%9.4f"%(i, in_means[i], in_stds[i], out_means[i], out_stds[i]))
 
     else:
         in_means = in_stds = out_means = out_stds = None
@@ -239,13 +218,6 @@ def get_data_tensor_from_numpy(args, filename):
         init_rho["test"] = None
 
     return data, data["train"], data["test"], in_means, in_stds, out_means, out_stds, init_rho["train"], init_rho["test"]
-
-
-def plot_loss_curve(nt, losses, fig_name):
-    ts = range(nt)
-    plt.plot(ts, torch.mean(losses.reshape(nt, -1), dim=-1).detach().cpu().numpy())
-    plt.savefig(fig_name, bbox_inches='tight', pad_inches=0)
-    plt.close()
 
 
 def plot_heatmap(fig_name, heat, args):
@@ -334,7 +306,6 @@ def plot_t_density_particles(input_data):
     plot_scatter("%s/all_e%06d_t%03d.png" % (args.viz_dir, epi, t),
                  test_gt_x_plain[t, :, args.x_index], test_gt_x_plain[t, :, args.y_index], "blue",
                  test_x_est[:, args.x_index], test_x_est[:, args.y_index], "red", args)
-    return
 
 
 def parse_line(line, keyword, is_int=False, is_str=False, fail_none=False):
@@ -373,38 +344,8 @@ def main():
         cmdline = open(os.path.join("../nn_pde/data/", args.train_data_path, "cmd.txt")).readlines()[0]
     else:
         cmdline = open(os.path.join("cache", args.train_data_path, "cmd.txt")).readlines()[0]
-    if args.x_min is None:
-        args.x_min = parse_line(cmdline, "--x_min")
-    if args.y_min is None:
-        args.y_min = parse_line(cmdline, "--y_min")
-    if args.x_max is None:
-        args.x_max = parse_line(cmdline, "--x_max")
-    if args.y_max is None:
-        args.y_max = parse_line(cmdline, "--y_max")
-    if args.dt is None:
-        args.dt = parse_line(cmdline, "--dt")
-    if args.max_len is None:
-        args.max_len = parse_line(cmdline, "--nt", is_int=True)
-    if args.x_index == 0:
-        args.x_index = parse_line(cmdline, "--x_index", is_int=True, fail_none=True)
-        if args.x_index is None:
-            args.x_index = 0
-    if args.y_index == 1:
-        args.y_index = parse_line(cmdline, "--y_index", is_int=True, fail_none=True)
-        if args.y_index is None:
-            args.y_index = 1
-    if args.x_label == 'x':
-        args.x_label = parse_line(cmdline, "--x_label", is_str=True, fail_none=True)
-        if args.x_label is None:
-            args.x_label = 'x'
-    if args.y_label == 'y':
-        args.y_label = parse_line(cmdline, "--y_label", is_str=True, fail_none=True)
-        if args.y_label is None:
-            args.y_label = 'y'
-    if args.nx is None:
-        args.nx = parse_line(cmdline, "--nx", is_int=True)
-    if args.ny is None:
-        args.ny = parse_line(cmdline, "--ny", is_int=True)
+
+    args = sub_utils.load_args_from_cmd(cmdline, args)
 
     # TODO setup exp dir
     args = sub_utils.setup_data_exp_and_logger(args, train_nn=True)
@@ -416,6 +357,7 @@ def main():
     args.in_stds = in_stds
     args.out_means = out_means
     args.out_stds = out_stds
+
     nt, n_train, ndim = train_d["s"].shape
     n_test = test_d["s"].shape[1]
     input_dim = ndim + 1  # plus t dimension
@@ -441,8 +383,12 @@ def main():
         test_gt_logr = test_gt_logr.cuda()
         model = model.cuda()
         model.update_device()
+        if args.normalize:
+            in_means_cuda = torch.from_numpy(args.in_means).float().cuda()
+            in_stds_cuda = torch.from_numpy(args.in_stds).float().cuda()
+            out_means_cuda = torch.from_numpy(args.out_means).float().cuda()
+            out_stds_cuda = torch.from_numpy(args.out_stds).float().cuda()
 
-    train_gtr = train_d['rho'].detach().cpu()
     test_gtr = test_d['rho'].detach().cpu()
     test_gt_x = test_d['s'].detach().cpu()
 
@@ -451,27 +397,11 @@ def main():
         model.load_state_dict(torch.load(args.pretrained_path))
     optimizer = torch.optim.SGD(model.parameters(), args.lr)
 
-    losses = sub_utils.AverageMeter()
-    losses_pde = sub_utils.AverageMeter()
-    losses_bound = sub_utils.AverageMeter()
-    losses_train_l2 = sub_utils.AverageMeter()
-    losses_train_l2_0 = sub_utils.AverageMeter()
-    losses_test_l2 = sub_utils.AverageMeter()
-    losses_test_l2_0 = sub_utils.AverageMeter()
-    losses_train_x_l2 = sub_utils.AverageMeter()
-    losses_test_x_l2 = sub_utils.AverageMeter()
-    losses_test_x_0_l2 = sub_utils.AverageMeter()
+    losses, losses_pde, losses_bound, losses_train_l2, losses_train_l2_0, losses_test_l2, losses_test_l2_0, \
+            losses_train_x_l2, losses_test_x_l2, losses_test_x_0_l2 = sub_utils.get_average_meters(10)
 
     # TODO prepare for xys for gain mode
-    nabla_list = []
-    if args.less_t:
-        the_t_dim = 1
-    else:
-        the_t_dim = nt
-    for t in range(the_t_dim):
-        nabla = train_d['nabla'][t:-1].reshape(-1, 1)
-        nabla_list.append(nabla)
-    nablas = torch.cat(nabla_list, dim=0)
+    nablas = train_d['nabla'][:-1].reshape(-1, 1)
 
     # data preparation
     all_xs = train_d['s'].reshape(-1, ndim)
@@ -483,12 +413,8 @@ def main():
     train_init_xts = torch.cat([train_init_xs, train_init_ts], dim=-1)
     pool = Pool(processes=args.num_workers)
 
-
     # MAIN LOOP
     for epi in range(args.num_epochs):
-        if args.eval_mode == False:
-            model.train()
-
         if args.change_after is not None and epi==args.change_after:
             print("Changed from DYNA to RHO~~")
             args.train_dyna_only=False
@@ -500,90 +426,52 @@ def main():
                 args.lr = args.new_lr
 
             # TODO reset
-            losses = sub_utils.AverageMeter()
-            losses_pde = sub_utils.AverageMeter()
-            losses_bound = sub_utils.AverageMeter()
-            losses_train_l2 = sub_utils.AverageMeter()
-            losses_train_l2_0 = sub_utils.AverageMeter()
-            losses_test_l2 = sub_utils.AverageMeter()
-            losses_test_l2_0 = sub_utils.AverageMeter()
-            losses_train_x_l2 = sub_utils.AverageMeter()
-            losses_test_x_l2 = sub_utils.AverageMeter()
-            losses_test_x_0_l2 = sub_utils.AverageMeter()
+            losses, losses_pde, losses_bound, losses_train_l2, losses_train_l2_0, losses_test_l2, losses_test_l2_0, \
+                    losses_train_x_l2, losses_test_x_l2, losses_test_x_0_l2 = sub_utils.get_average_meters(10)
 
         # all (x,0) cases, should gain=1  (log(gain)=0)
-        gain_dyna_0 = model(xs_t0)
+        if args.normalize:
+            gain_dyna_0 = nn_normalize(xs_t0, model, in_means_cuda, in_stds_cuda, out_means_cuda, out_stds_cuda)
+        else:
+            gain_dyna_0 = model(xs_t0)
         if args.t_struct_out_nn:
             gain_dyna_0 = t_struct_func(xs_t0, gain_dyna_0, args)
-        if args.only_dynamics_arch == False:
-            gain_0 = gain_dyna_0[:, 0:1]
-            loss_bound = torch.mean(gain_0*gain_0)
+        gain_0 = gain_dyna_0[:, 0:1]
+        loss_bound = torch.mean(gain_0*gain_0)
 
         # all (x,t) cases, loss for density and x
-        train_est_gain_dyna = model(train_init_xts)
+        if args.normalize:
+            train_est_gain_dyna = nn_normalize(train_init_xts, model, in_means_cuda, in_stds_cuda, out_means_cuda, out_stds_cuda)
+        else:
+            train_est_gain_dyna = model(train_init_xts)
         if args.t_struct_out_nn:
             train_est_gain_dyna = t_struct_func(train_init_xts, train_est_gain_dyna, args)
-        if args.only_dynamics_arch == False:
-            if args.only_density_arch:
-                log_train_est_rho = train_est_gain_dyna[:, 0:1]
-                pred = train_est_gain_dyna.reshape([nt, n_train, 1])
-                gain_dyna_ijks = pred[:-1].reshape([(nt - 1) * n_train, 1])
-                gain_dyna_ijk1s = pred[1:].reshape([(nt - 1) * n_train, 1])
-            else:
-                log_train_est_rho = train_est_gain_dyna[:, 0:1]
-                pred = train_est_gain_dyna.reshape([nt, n_train, input_dim])
-                gain_dyna_ijks = pred[:-1].reshape([(nt - 1) * n_train, input_dim])
-                gain_dyna_ijk1s = pred[1:].reshape([(nt - 1) * n_train, input_dim])
-            if args.wrap_log1:
-                exp_kk1s = torch.exp(gain_dyna_ijk1s[:,0:1] - gain_dyna_ijks[:,0:1])
-                nabla_f_dt1s = nablas * args.dt - 1
-                # loss_pde = torch.mean((exp_kk1s + nabla_f_dt1s) ** 2)
 
-                if args.ratio_loss:
-                    loss_pde = torch.mean((exp_kk1s / nabla_f_dt1s + 1) ** 2)
-                elif args.l1_loss:
-                    loss_pde = torch.mean(torch.abs(exp_kk1s + nabla_f_dt1s))
-                else:
-                    loss_pde = torch.mean((exp_kk1s + nabla_f_dt1s) ** 2)
+        log_train_est_rho = train_est_gain_dyna[:, 0:1]
+        pred = train_est_gain_dyna.reshape([nt, n_train, input_dim])
+        gain_dyna_ijks = pred[:-1].reshape([(nt - 1) * n_train, input_dim])
+        gain_dyna_ijk1s = pred[1:].reshape([(nt - 1) * n_train, input_dim])
 
-            elif args.wrap_log2:
-                kk1s = gain_dyna_ijk1s[:,0:1] - gain_dyna_ijks[:,0:1]
-                log_nabla_f_dt1s = torch.log(nablas * args.dt - 1)
-                loss_pde = torch.mean((kk1s + log_nabla_f_dt1s) ** 2)
+        exp_kk1s = torch.exp(gain_dyna_ijk1s[:,0:1] - gain_dyna_ijks[:,0:1])
+        nabla_f_dt1s = nablas * args.dt - 1
 
-            log_train_l2_loss = (log_train_est_rho - train_d['rho'].reshape(nt * n_train, 1)) ** 2
-            log_train_l2_loss_curve = log_train_l2_loss * 1.0
-            log_train_l2_loss_0 = torch.mean(log_train_l2_loss[0])
-            log_train_l2_loss = torch.mean(log_train_l2_loss)
-            losses_train_l2.update(log_train_l2_loss.detach().cpu().item())
-            losses_train_l2_0.update(log_train_l2_loss_0.detach().cpu().item())
+        loss_pde = torch.mean((exp_kk1s + nabla_f_dt1s) ** 2)
 
-        if args.only_density_arch == False:
-            if args.only_dynamics_arch:
-                if args.normalize:
-                    train_x_l2_loss = ((train_est_gain_dyna[:, :] - train_d['s'].reshape(nt * n_train, input_dim - 1))
-                                      /model.out_stds[:]
-                                      ) ** 2
-                else:
-                    train_x_l2_loss = (train_est_gain_dyna[:, :] - train_d['s'].reshape(nt * n_train, input_dim-1))**2
-            else:
-                if args.normalize:
-                    train_x_l2_loss = ((train_est_gain_dyna[:, 1:] - train_d['s'].reshape(nt * n_train, input_dim - 1))
-                                      /model.out_stds[1:]
-                                      ) ** 2
-                else:
-                    train_x_l2_loss = (train_est_gain_dyna[:, 1:] - train_d['s'].reshape(nt * n_train, input_dim-1))**2
+        log_train_l2_loss = (log_train_est_rho - train_d['rho'].reshape(nt * n_train, 1)) ** 2
+        log_train_l2_loss_0 = torch.mean(log_train_l2_loss[0])
+        log_train_l2_loss = torch.mean(log_train_l2_loss)
+        losses_train_l2.update(log_train_l2_loss.detach().cpu().item())
+        losses_train_l2_0.update(log_train_l2_loss_0.detach().cpu().item())
 
-            train_x_0_l2_loss = torch.mean(train_x_l2_loss.reshape(nt, n_train, input_dim-1)[0])
-            train_x_l2_loss_curve = train_x_l2_loss * 1.0
-            train_x_l2_loss = torch.mean(train_x_l2_loss)
-            losses_train_x_l2.update(train_x_l2_loss.detach().cpu().item())
+        if args.normalize:
+            train_x_l2_loss = ((train_est_gain_dyna[:, 1:] - train_d['s'].reshape(nt * n_train, input_dim - 1))
+                              /model.out_stds[1:]) ** 2
+        else:
+            train_x_l2_loss = (train_est_gain_dyna[:, 1:] - train_d['s'].reshape(nt * n_train, input_dim-1))**2
 
-
-        # writer.add_scalar("loss_bound", loss_bound, epi)
-        # writer.add_scalar("loss_pde", loss_pde * args.beta, epi)
-        # writer.add_scalar("train_l2_loss", log_train_l2_loss, epi)
-        # writer.add_scalar("train_l2_loss_0", log_train_l2_loss_0, epi)
+        train_x_0_l2_loss = torch.mean(train_x_l2_loss.reshape(nt, n_train, input_dim-1)[0])
+        train_x_l2_loss = torch.mean(train_x_l2_loss)
+        losses_train_x_l2.update(train_x_l2_loss.detach().cpu().item())
 
         # BACKPROP
         if args.train_dyna_only:
@@ -596,74 +484,53 @@ def main():
         if args.init_x_weight is not None:
             loss = loss + train_x_0_l2_loss * args.init_x_weight
 
-        if args.eval_mode == False:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1e-6)
-            optimizer.step()
-            optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1e-6)
+        optimizer.step()
+        optimizer.zero_grad()
 
         losses.update(loss.detach().cpu().item())
-        if args.only_dynamics_arch==False:
-            losses_pde.update(loss_pde.detach().cpu().item())
-            losses_bound.update(loss_bound.detach().cpu().item())
+        losses_pde.update(loss_pde.detach().cpu().item())
+        losses_bound.update(loss_bound.detach().cpu().item())
 
         if epi % args.save_freq == 0:
-            test_gain_dyna = model(test_xt0s)
+            if args.normalize:
+                test_gain_dyna = nn_normalize(test_xt0s, model, in_means_cuda, in_stds_cuda, out_means_cuda, out_stds_cuda)
+            else:
+                test_gain_dyna = model(test_xt0s)
             if args.t_struct_out_nn:
                 test_gain_dyna = t_struct_func(test_xt0s, test_gain_dyna, args)
-            if args.only_density_arch == False and args.only_dynamics_arch == False:
-                test_gain_dyna_full = test_gain_dyna.reshape(nt, n_test, input_dim).detach()
-            elif args.only_density_arch==True:
-                test_gain_dyna_full = test_gain_dyna.reshape(nt, n_test, 1).detach()
-            else: # dynamics
-                test_gain_dyna_full = test_gain_dyna.reshape(nt, n_test, input_dim-1).detach()
+            test_gain_dyna_full = test_gain_dyna.reshape(nt, n_test, input_dim).detach()
             log_est_rhos = test_gain_dyna[:, 0:1]
 
-            if args.only_density_arch == False:
-                if args.only_dynamics_arch == False:
-                    if args.normalize:
-                        test_x_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:])/model.out_stds[1:]) ** 2
-                    else:
-                        test_x_l2_loss = (test_gt_xs - test_gain_dyna[:, 1:]) ** 2
-                else:
-                    if args.normalize:
-                        test_x_l2_loss = ((test_gt_xs - test_gain_dyna[:, :])/model.out_stds[:]) ** 2
-                    else:
-                        test_x_l2_loss = (test_gt_xs - test_gain_dyna[:, :]) ** 2
-                test_x_l2_loss_curve = test_x_l2_loss * 1.0
-                test_x_l2_loss = torch.mean(test_x_l2_loss)
-                losses_test_x_l2.update(test_x_l2_loss.detach().cpu().item())
-                if args.only_dynamics_arch == False:
-                    if args.normalize:
-                        text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:]).reshape(nt, n_test, input_dim-1)[0]/model.out_stds[1:]) ** 2
-                    else:
-                        text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:]).reshape(nt, n_test, input_dim-1)[0]) ** 2
-                else:
-                    if args.normalize:
-                        text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, :]).reshape(nt, n_test, input_dim-1)[0]/model.out_stds[:]) ** 2
-                    else:
-                        text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, :]).reshape(nt, n_test, input_dim-1)[0]) ** 2
-                text_x_0_l2_loss = torch.mean(text_x_0_l2_loss)
-                losses_test_x_0_l2.update(text_x_0_l2_loss.detach().cpu().item())
-            if args.only_dynamics_arch == False:
-                log_test_l2_loss = (log_est_rhos - test_gt_logr) ** 2
-                if args.more_error:
-                    rel_l2_loss = ((log_est_rhos - test_gt_logr) / torch.clamp_min(test_gt_logr, 1e-4))**2
-                    print("rel_loss", torch.mean(rel_l2_loss).detach().cpu().item())
+            if args.normalize:
+                test_x_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:])/model.out_stds[1:]) ** 2
+            else:
+                test_x_l2_loss = (test_gt_xs - test_gain_dyna[:, 1:]) ** 2
+            test_x_l2_loss = torch.mean(test_x_l2_loss)
+            losses_test_x_l2.update(test_x_l2_loss.detach().cpu().item())
+            if args.normalize:
+                text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:]).reshape(nt, n_test, input_dim-1)[0]/model.out_stds[1:]) ** 2
+            else:
+                text_x_0_l2_loss = ((test_gt_xs - test_gain_dyna[:, 1:]).reshape(nt, n_test, input_dim-1)[0]) ** 2
+            text_x_0_l2_loss = torch.mean(text_x_0_l2_loss)
+            losses_test_x_0_l2.update(text_x_0_l2_loss.detach().cpu().item())
 
-                log_test_l2_loss_curve = log_test_l2_loss * 1.0
-                log_test_l2_loss_0 = log_test_l2_loss.reshape(nt, n_test)[0]
-                log_test_l2_loss = torch.mean(log_test_l2_loss)
-                log_test_l2_loss_0 = torch.mean(log_test_l2_loss_0)
-                losses_test_l2.update(log_test_l2_loss.detach().cpu().item())
-                losses_test_l2_0.update(log_test_l2_loss_0.detach().cpu().item())
-                writer.add_scalar("test_l2_loss", log_test_l2_loss, epi)
-                writer.add_scalar("test_l2_loss_0", log_test_l2_loss_0, epi)
+            log_test_l2_loss = (log_est_rhos - test_gt_logr) ** 2
+            if args.more_error:
+                rel_l2_loss = ((log_est_rhos - test_gt_logr) / torch.clamp_min(test_gt_logr, 1e-4))**2
+                print("rel_loss", torch.mean(rel_l2_loss).detach().cpu().item())
+
+            log_test_l2_loss_0 = log_test_l2_loss.reshape(nt, n_test)[0]
+            log_test_l2_loss = torch.mean(log_test_l2_loss)
+            log_test_l2_loss_0 = torch.mean(log_test_l2_loss_0)
+            losses_test_l2.update(log_test_l2_loss.detach().cpu().item())
+            losses_test_l2_0.update(log_test_l2_loss_0.detach().cpu().item())
+            writer.add_scalar("test_l2_loss", log_test_l2_loss, epi)
+            writer.add_scalar("test_l2_loss_0", log_test_l2_loss_0, epi)
 
             if args.train_dyna_only and args.to_see_dens==False:
-                print_str = "[%03d/%03d] loss:%.6f(%.6f)" % (
-                                epi, args.num_epochs, losses.val, losses.avg,
-                            )
+                print_str = "[%03d/%03d] loss:%.6f(%.6f)" % (epi, args.num_epochs, losses.val, losses.avg)
             else:
                 print_str = "[%03d/%03d] loss:%.6f(%.6f) mse:%.6f(%.6f) pde:%.6f(%.6f) " \
                             "l2_0:%.6f(%.6f) l2:%.6f(%.6f) test:%.6f(%.6f) %.6f(%.6f)" % (
@@ -674,52 +541,39 @@ def main():
                                 losses_test_l2_0.val, losses_test_l2_0.avg,
                                 losses_test_l2.val, losses_test_l2.avg,
                             )
-            if args.only_density_arch==False:
-                print_str += " x2:%.6f(%.6f) te-x2:%.6f(%.6f) t0:%.6f(%.6f)"%\
-                             (losses_train_x_l2.val, losses_train_x_l2.avg, losses_test_x_l2.val, losses_test_x_l2.avg,
-                              losses_test_x_0_l2.val, losses_test_x_0_l2.avg)
+            print_str += " x2:%.6f(%.6f) te-x2:%.6f(%.6f) t0:%.6f(%.6f)"%\
+                         (losses_train_x_l2.val, losses_train_x_l2.avg, losses_test_x_l2.val, losses_test_x_l2.avg,
+                          losses_test_x_0_l2.val, losses_test_x_0_l2.avg)
             print(print_str)
             model_path = "%s/model%d.ckpt" % (args.model_dir, epi)
             torch.save(model.state_dict(), model_path)
-            if args.only_density_arch == False and args.only_dynamics_arch==False:
-                sub_utils.save_model_in_julia_format(
-                    model_path, model_path.replace("model%d.ckpt"%(epi), "checkpoint%d.mat"%(epi)), input_dim, input_dim,
-                    args
-                )
+            sub_utils.save_model_in_julia_format(
+                model_path, model_path.replace("model%d.ckpt"%(epi), "checkpoint%d.mat"%(epi)), input_dim, input_dim,
+                args)
+
+            sub_utils.convert_to_onnx(model, ndim+1, onnx_path="%s/model%d.onnx"%(args.model_dir, epi))
+
         writer.flush()
 
         # EVAL AND VIS
         if epi % args.eval_freq == 0 or epi == args.num_epochs - 1:
-            if args.only_dynamics_arch == False:
-                # show stats
-                for t in range(nt):
-                    if args.show_stat:
-                        if t % 10 == 0 or t == nt - 1 or (nt<=5):
-                            est_res = test_gain_dyna_full[t]
-                            log_r_grid = est_res[:, 0:1]
-                            print("ti %02d min gt:%.4f | est:%.4f || max gt:%.4f | est:%.4f || error:%.4f"%(
-                                    t, torch.min(test_gtr[t, :, -1]), torch.min(log_r_grid.detach().cpu()),
-                                    torch.max(test_gtr[t, :, -1]), torch.max(log_r_grid.detach().cpu()),
-                                torch.mean(((test_gtr[t, :, -1]) - log_r_grid.detach().cpu()[:, -1])**2)
-                            ))
-
-            # # loss curve plots
-            # plot_loss_curve(nt, train_x_l2_loss_curve, "%s/dyna_train_e%06d.png" % (args.viz_dir, epi))
-            # plot_loss_curve(nt, test_x_l2_loss_curve, "%s/dyna_test_e%06d.png" % (args.viz_dir, epi))
-            # plot_loss_curve(nt, log_train_l2_loss_curve, "%s/rho_train_e%06d.png" % (args.viz_dir, epi))
-            # plot_loss_curve(nt, log_test_l2_loss_curve, "%s/rho_test_e%06d.png" % (args.viz_dir, epi))
+            # show stats
+            for t in range(nt):
+                if args.show_stat:
+                    if t % 10 == 0 or t == nt - 1 or (nt<=5):
+                        est_res = test_gain_dyna_full[t]
+                        log_r_grid = est_res[:, 0:1]
+                        print("ti %02d min gt:%.4f | est:%.4f || max gt:%.4f | est:%.4f || error:%.4f"%(
+                                t, torch.min(test_gtr[t, :, -1]), torch.min(log_r_grid.detach().cpu()),
+                                torch.max(test_gtr[t, :, -1]), torch.max(log_r_grid.detach().cpu()),
+                            torch.mean(((test_gtr[t, :, -1]) - log_r_grid.detach().cpu()[:, -1])**2)
+                        ))
 
             # each time step, density and particles
-
             tt0 = time.time()
             test_gt_x_plain = test_gt_x.detach().cpu()
             test_gtr_plain = test_gtr.detach().cpu()
-            if args.only_density_arch == False and args.only_dynamics_arch == False:
-                test_gain_dyna_full_plain = test_gain_dyna_full.detach().cpu()
-            elif args.only_density_arch:
-                test_gain_dyna_full_plain = torch.cat([test_gain_dyna_full.detach().cpu(), test_gt_x_plain], axis=-1)
-            else:
-                test_gain_dyna_full_plain = torch.cat([test_gtr_plain, test_gain_dyna_full.detach().cpu()], axis=-1)
+            test_gain_dyna_full_plain = test_gain_dyna_full.detach().cpu()
 
             inputs = [[epi, t, test_gain_dyna_full_plain, test_gt_x_plain, test_gtr_plain, n_test, input_dim, test_ri, args] for t in range(nt)]
             pool.map(plot_t_density_particles, inputs)
@@ -735,9 +589,6 @@ def main():
                         in_stds=args.in_stds,
                         out_means=args.out_means,
                         out_stds=args.out_stds)
-            np.savez(os.path.join("%s/pred%d" % (args.model_dir, epi)),
-                    test_gain_dyna=test_gain_dyna.detach().cpu().numpy(),
-                    log_est_rhos=log_est_rhos.detach().cpu().numpy())
 
     writer.close()
     t2 = time.time()
