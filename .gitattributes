@@ -1,0 +1,1 @@
+prep/comp_gcas/traj_data.npz filter=lfs diff=lfs merge=lfs -text

@@ -162,11 +162,8 @@ def get_args():
 
 
 def get_data_tensor_from_numpy(args, filename):
-    data={"train":{}, "test":{}}
-    if args.external:
-        raw_data = np.load(os.path.join("../nn_pde/data/", args.train_data_path, filename), allow_pickle=True)['arr_0'].item()
-    else:
-        raw_data = np.load(os.path.join("cache", args.train_data_path, filename), allow_pickle=True)['arr_0'].item()
+    data = {"train": {}, "test": {}}
+    raw_data = np.load(os.path.join(smart_path(args.train_data_path), filename), allow_pickle=True)['arr_0'].item()
     keys = ['s_list', 'rho_list', 'nabla_list', 't_list']  # (n_trajs, nt, dim)
     if args.max_len is not None:
         for k in keys:
@@ -341,6 +338,17 @@ def t_struct_func(xt0, gain_dyna, args):
     return torch.cat([new_gain, gain_dyna[:, 1:]], dim=-1)
 
 
+def smart_path(query_path):
+    poss_paths = ["prep", "../nn_pde/data", "cache", "./"]
+    for path in poss_paths:
+        try_path = os.path.join(path, query_path)
+        if os.path.exists(try_path):
+            print("Find path %s ..." % (try_path))
+            return try_path
+    print("Cannot find a valid path for *%s"%(query_path))
+    raise NotImplementedError
+
+
 def main():
     t1=time.time()
     args = get_args()
@@ -349,10 +357,7 @@ def main():
     torch.manual_seed(args.random_seed)
 
     # TODO auto load config from cmd.txt
-    if args.external:
-        cmdline = open(os.path.join("../nn_pde/data/", args.train_data_path, "cmd.txt")).readlines()[0]
-    else:
-        cmdline = open(os.path.join("cache", args.train_data_path, "cmd.txt")).readlines()[0]
+    cmdline = open(os.path.join(smart_path(args.train_data_path), "cmd.txt")).readlines()[0]
 
     args = sub_utils.load_args_from_cmd(cmdline, args)
 
