@@ -1,1 +1,0 @@
-python collect_data.py --exp_mode gcas --exp_name debug --dt 0.03333 --nt 106 --num_samples 5000 --x_min 500 --x_max 650 --y_min -200 --y_max 1200 --x_index 0 --y_index 11 --x_label v (ft/s) --y_label alt (ft) --nx 161 --ny 161 --viz_log_density --sim_data_path /home/meng/mit/nn_pde/aerobench/aerobench/examples/gcas/data/g0613-011833/sim_trajs.npz

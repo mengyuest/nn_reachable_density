@@ -1,1 +1,0 @@
-python train_actor.py --gpus 1 --exp_name DB_new --hiddens 32 32 --num_epochs 10000 --batch_size 1024 --lr 0.005 --t_len 50 --dt 0.05 --obs_weight 8.0 --dst_weight 1.0 --reg_weight 0.1 --eval_freq 100 --viz_freq 1000 --test_batch_size 64 --xy_range 0.2 --obs_r 0.8 --output_type tanh --tanh_gain 4.0 --show_stat

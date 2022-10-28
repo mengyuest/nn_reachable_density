@@ -1,1 +1,0 @@
-python train_vnn.py --gpus 2 --exp_mode gcas --exp_name gcas_outT --hiddens 32 32 --num_epochs 500000 --lr 5000 --train_data_path comp_gcas --train_dyna_only --log_density --normalize --change_after 100000 --new_show_stat --new_dyna_weight 0.25 --new_lr 2000 --t_struct_out_nn --external
